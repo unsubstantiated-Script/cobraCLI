@@ -1,40 +1,44 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
+	"cobraCLI/internal/client"
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
-// submitCmd represents the submit command
+var command string
+
 var submitCmd = &cobra.Command{
 	Use:   "submit",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Submit a task to the distributed system",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		httpClient, err := client.NewHTTPClient(httpAddr)
+		if err != nil {
+			return err
+		}
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("submit called")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		resp, err := httpClient.SubmitTask(ctx, command)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("queued: %s\n", resp.Command)
+		fmt.Printf("status: %s\n", resp.Status)
+		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(submitCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// submitCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// submitCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	submitCmd.Flags().StringVarP(&command, "command", "c", "", "command to enqueue")
+	_ = submitCmd.MarkFlagRequired("command")
 }
