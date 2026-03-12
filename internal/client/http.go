@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -23,13 +25,43 @@ type SubmitTaskResponse struct {
 	Command string `json:"command"`
 }
 
-func NewHTTPClient(baseURL string) *HTTPClient {
+func NewHTTPClient(baseURL string) (*HTTPClient, error) {
+	normalizedURL, err := normalizeBaseURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	return &HTTPClient{
-		baseURL: baseURL,
+		baseURL: normalizedURL,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
+	}, nil
+}
+
+func normalizeBaseURL(raw string) (string, error) {
+	addr := strings.TrimSpace(raw)
+	if addr == "" {
+		return "", fmt.Errorf("http address cannot be empty")
 	}
+
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+
+	if !strings.Contains(addr, "://") {
+		addr = "http://" + addr
+	}
+
+	parsed, err := url.Parse(addr)
+	if err != nil {
+		return "", fmt.Errorf("invalid http address %q: %w", raw, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("invalid http address %q: expected host:port or URL", raw)
+	}
+
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 func (c *HTTPClient) SubmitTask(ctx context.Context, command string) (*SubmitTaskResponse, error) {
@@ -71,10 +103,19 @@ func (c *HTTPClient) SubmitTask(ctx context.Context, command string) (*SubmitTas
 }
 
 func (c *HTTPClient) HealthCheck(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/tasks", bytes.NewBuffer([]byte(`{"command":"ping"}`)))
+	body := []byte(`{"command":"ping"}`)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/tasks",
+		bytes.NewBuffer(body),
+	)
+
 	if err != nil {
 		return err
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
