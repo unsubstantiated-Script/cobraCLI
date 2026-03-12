@@ -1,40 +1,38 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
+	"cobraCLI/internal/client"
 	"fmt"
 
 	"github.com/spf13/cobra"
 )
 
-// workerPingCmd represents the workerPing command
+var workerName string
+
 var workerPingCmd = &cobra.Command{
 	Use:   "workerPing",
 	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	RunE: func(cmd *cobra.Command, args []string) error {
+		grpcClient, err := client.NewGRPCClient(grpcAddr)
+		if err != nil {
+			return err
+		}
+		defer grpcClient.Close()
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("workerPing called")
+		resp, err := grpcClient.ReportStatus(cmd.Context(), workerName)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("grpc response: %s\n", resp)
+		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(workerPingCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// workerPingCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// workerPingCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	workerPingCmd.Flags().StringVar(&workerName, "name", "cobra-cli", "worker/client name")
 }
